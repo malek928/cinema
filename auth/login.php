@@ -5,6 +5,8 @@ error_reporting(E_ALL);
 require_once __DIR__ . "/../config/db.php";
 session_start();
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $email = $_POST["email"];
@@ -21,18 +23,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         echo "Login success";
 
-        // plus tard :
         // header("Location: ../films/liste.php");
 
+        exit;
+
     } else {
-        echo "Email ou mot de passe incorrect";
+        $error = "Email ou mot de passe incorrect";
     }
 }
-?>
 
-<h2>Login</h2>
-<form method="POST">
-    <input name="email" placeholder="Email"><br>
-    <input type="password" name="password" placeholder="Password"><br>
-    <button type="submit">Login</button>
-</form>
+include "login.view.php";
+?>
