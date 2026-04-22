@@ -7,7 +7,7 @@ session_start();
  
 // Si déjà connecté
 if (isset($_SESSION["user_id"])) {
-    header("Location: ../index.php");
+    header("Location: ../films/liste.php");
     exit;
 }
  
