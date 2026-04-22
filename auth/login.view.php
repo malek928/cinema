@@ -16,7 +16,7 @@
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit">Login</button>
         </form>
-
+        <p>Pas de compte ? <a href="register.php">S'inscrire</a></p>  <!-- ajouter cette ligne -->
         <p><?php if(isset($error)) echo $error; ?></p>
 
     </div>

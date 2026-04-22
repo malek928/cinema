@@ -2,6 +2,6 @@
 session_start();
 session_destroy();
 
-header("Location: login.php");
+header("Location: auth.php");  // ← vérifier que c'est auth.php
 exit;
 ?>
