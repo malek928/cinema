@@ -1,11 +1,6 @@
 <?php
-// We are trying to connect to MySQL on localhost
-// using username "root", no password, and a database named "cinema"
-$conn = new mysqli("localhost", "root", "", "cinema");// Check if the connection failed
-if ($conn->connect_error) {
-    die("DB failed: " . $conn->connect_error);
-}
+// On remonte d'un dossier (..) pour aller chercher la config
+require_once '../config/db.php';
 
-// If it works, print this message
-echo "Database connected successfully!";
+echo "<h2>✅ Si tu vois ce texte, la connexion à la DB 'cinema' fonctionne parfaitement !</h2>";
 ?>

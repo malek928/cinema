@@ -1,18 +1,16 @@
 <?php
-// On essaie avec ton mot de passe perso
-$password = "12345678"; 
+// On active l'affichage des erreurs pour MySQL (indispensable pour débugger tes transactions)
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// Si on est chez un pote qui n'a pas de mot de passe, on peut tester ça :
-// $password = ""; 
+$host = "localhost";
+$user = "root";
+$password = ""; // Mot de passe vide par défaut sur XAMPP
+$database = "cinema"; // Nom de ta base selon ton fichier
 
-$conn = new mysqli("localhost", "root", $password, "cinema");
-
-if ($conn->connect_error) {
-    // Si ça échoue avec ton pass, on tente sans pass (pour tes potes)
-    $conn = new mysqli("localhost", "root", "", "cinema");
-    
-    if ($conn->connect_error) {
-        die("Erreur critique de connexion : " . $conn->connect_error);
-    }
+try {
+    $conn = new mysqli($host, $user, $password, $database);
+    $conn->set_charset("utf8mb4");
+} catch (Exception $e) {
+    die("❌ Erreur critique de connexion : " . $e->getMessage());
 }
 ?>

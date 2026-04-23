@@ -1,63 +1,73 @@
 <?php
+// 1. Démarrer la session pour récupérer l'ID de l'utilisateur (Member 2)
 session_start();
-// Fausse session : On fait comme si l'utilisateur John Doe (ID 1) était connecté
-$_SESSION['user_id'] = 1; 
 
-// Connexion à TA base
+// 2. Connexion à la base de données
+// Note : On utilise $conn (MySQLi) ici comme dans ton script initial
 require_once '../config/db.php';
 
-// Récupérer les séances disponibles avec le titre du film
-$sql = "SELECT seance.id, film.titre, seance.date, seance.heure, seance.places_dispo 
-        FROM seance 
-        JOIN film ON seance.id_film = film.id 
-        WHERE seance.places_dispo > 0";
+// ON VÉRIFIE QUE LE FORMULAIRE A BIEN ÉTÉ ENVOYÉ
+if (!isset($_POST['nb_places']) || !isset($_POST['seance_id'])) {
+    header("Location: ../films/liste.php");
+    exit;
+}
 
-$result = $conn->query($sql);
+// ON RÉCUPÈRE LES VALEURS
+$seance_id = $_POST['seance_id']; 
+
+// ON RÉCUPÈRE L'ID DE L'UTILISATEUR CONNECTÉ
+// Si la session n'existe pas, on redirige vers l'auth ou on met un ID de test (1)
+if (!isset($_SESSION['user_id'])) {
+    // Pour tes tests locaux tu peux laisser : $client_id = 1;
+    // Mais pour la version finale, mieux vaut rediriger :
+    header("Location: ../auth/auth.php");
+    exit;
+}
+$client_id = $_SESSION['user_id']; 
+$nb_places_demandees = intval($_POST['nb_places']);
+
+try {
+    // 3. DÉMARRER LA TRANSACTION (Sécurité anti-doublons)
+    $conn->begin_transaction();
+
+    // 4. VÉRIFIER LES PLACES (FOR UPDATE bloque la ligne en BDD)
+    $stmt_check = $conn->prepare("SELECT places_dispo FROM seances WHERE id = ? FOR UPDATE");
+    $stmt_check->bind_param("i", $seance_id);
+    $stmt_check->execute();
+    $result = $stmt_check->get_result();
+    $seance = $result->fetch_assoc();
+
+    if (!$seance) {
+        throw new Exception("Cette séance n'existe pas.");
+    }
+
+    if ($seance['places_dispo'] < $nb_places_demandees) {
+        throw new Exception("Désolé, il ne reste que " . $seance['places_dispo'] . " places.");
+    }
+
+    // 5. INSÉRER LA RÉSERVATION
+    $stmt_insert = $conn->prepare("INSERT INTO reservations (seance_id, user_id, nb_places) VALUES (?, ?, ?)");
+    $stmt_insert->bind_param("iii", $seance_id, $client_id, $nb_places_demandees);
+    $stmt_insert->execute();
+
+    // 6. METTRE À JOUR LE STOCK DE PLACES
+    $stmt_update = $conn->prepare("UPDATE seances SET places_dispo = places_dispo - ? WHERE id = ?");
+    $stmt_update->bind_param("ii", $nb_places_demandees, $seance_id);
+    $stmt_update->execute();
+
+    // 7. VALIDER LA TRANSACTION
+    $conn->commit();
+
+    // 8. REDIRECTION VERS LA LISTE AVEC MESSAGE DE SUCCÈS
+    header("Location: ../films/liste.php?success=1"); 
+    exit;
+
+} catch (Exception $e) {
+    // 9. ANNULER TOUT EN CAS D'ERREUR
+    $conn->rollback();
+    
+    // Redirection vers le formulaire avec le message d'erreur
+    header("Location: formulaire.php?film_id=" . ($_POST['film_id'] ?? '') . "&error=" . urlencode($e->getMessage()));
+    exit;
+}
 ?>
-
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>Réserver une séance</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .form-container { background: #f4f4f4; padding: 20px; border-radius: 8px; max-width: 400px; }
-        select, input, button { width: 100%; margin-top: 10px; padding: 8px; }
-        button { background: #007BFF; color: white; border: none; cursor: pointer; margin-top: 20px; }
-        button:hover { background: #0056b3; }
-    </style>
-</head>
-<body>
-
-    <h2>🎟️ Réserver vos places de Cinéma</h2>
-
-    <div class="form-container">
-        <form action="traitement_reservation.php" method="POST">
-            
-            <label for="id_seance">Choisissez votre séance :</label>
-            <select name="id_seance" id="id_seance" required>
-                <option value="">-- Sélectionner une séance --</option>
-                <?php
-                if ($result && $result->num_rows > 0) {
-                    while($row = $result->fetch_assoc()) {
-                        echo "<option value='" . $row['id'] . "'>";
-                        // Affichage propre ex: "Batman - 2026-04-20 à 20:30:00"
-                        echo htmlspecialchars($row['titre']) . " - " . $row['date'] . " à " . $row['heure'] . " (" . $row['places_dispo'] . " places)";
-                        echo "</option>";
-                    }
-                } else {
-                    echo "<option value=''>Aucune séance disponible</option>";
-                }
-                ?>
-            </select>
-
-            <label style="margin-top: 15px; display: block;" for="nb_places">Nombre de places :</label>
-            <input type="number" name="nb_places" id="nb_places" min="1" max="10" value="1" required>
-
-            <button type="submit">Valider la réservation</button>
-        </form>
-    </div>
-
-</body>
-</html>
