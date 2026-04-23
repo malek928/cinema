@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . "/../config/db.php";
 
 if (!isset($_SESSION["user_id"])) {
-    header("Location: ../auth/auth.php");
+    header("Location: /cinema/auth/auth.php");
     exit;
 }
 
@@ -278,7 +278,7 @@ $firstName = isset($_SESSION["nom"]) ? $_SESSION["nom"] : "Invité";
     <a href="#" class="logo">Ciné<span>Max</span></a>
     <div class="nav-right">
         <span class="welcome">Bonjour, <strong><?= htmlspecialchars($firstName) ?></strong> 🎬</span>
-        <a href="../auth/logout.php" class="logout-btn">Déconnexion</a>
+        <a href="/cinema/auth/logout.php" class="logout-btn">Déconnexion</a>
     </div>
 </nav>
 

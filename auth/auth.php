@@ -7,7 +7,7 @@ session_start();
  
 // Si déjà connecté
 if (isset($_SESSION["user_id"])) {
-    header("Location: ../films/liste.php");
+    header("Location: /cinema/films/liste.php");
     exit;
 }
  
@@ -30,7 +30,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $_POST["form_type"] == "login") {
         $_SESSION["nom"]     = $user["nom"];
         $_SESSION["role"]    = $user["role"];
  
-        header("Location: ../index.php");
+        header("Location: /cinema/films/liste.php");
         exit;
     } else {
         $login_error = "Email ou mot de passe incorrect.";
