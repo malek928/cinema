@@ -7,7 +7,11 @@ session_start();
  
 // Si déjà connecté
 if (isset($_SESSION["user_id"])) {
+    if ($_SESSION["role"] === "admin") {
+    header("Location: /cinema/admin/films/liste.php");
+} else {
     header("Location: /cinema/films/liste.php");
+}
     exit;
 }
  
@@ -30,7 +34,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $_POST["form_type"] == "login") {
         $_SESSION["nom"]     = $user["nom"];
         $_SESSION["role"]    = $user["role"];
  
+        if ($_SESSION["role"] === "admin") {
+    header("Location: /cinema/admin/films/liste.php");
+    } else {
         header("Location: /cinema/films/liste.php");
+        }
         exit;
     } else {
         $login_error = "Email ou mot de passe incorrect.";

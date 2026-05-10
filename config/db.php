@@ -2,7 +2,7 @@
 $host = 'localhost';
 $dbname = 'cinema';
 $username = 'root';
-$password = '';
+$password = '92442505';
 
 try {
     $pdo = new PDO(
