@@ -1,317 +1,105 @@
 <?php
 session_start();
-require_once __DIR__ . "/../config/db.php";
+require_once __DIR__ . "/../../config/db.php";
 
-if (!isset($_SESSION["user_id"])) {
+if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
     header("Location: /cinema/auth/auth.php");
     exit;
 }
 
-$stmt = $pdo->query("SELECT * FROM film ORDER BY id DESC");
-$films = $stmt->fetchAll(PDO::FETCH_ASSOC);
-$firstName = isset($_SESSION["nom"]) ? $_SESSION["nom"] : "Invité";
+// Supprimer un film
+if (isset($_GET["delete"])) {
+    $id = (int)$_GET["delete"];
+    // Supprimer l'affiche du disque
+    $stmt = $pdo->prepare("SELECT affiche FROM film WHERE id = ?");
+    $stmt->execute([$id]);
+    $film = $stmt->fetch();
+    if ($film && !empty($film["affiche"])) {
+        $path = __DIR__ . "/../../" . $film["affiche"];
+        if (file_exists($path)) unlink($path);
+    }
+    $pdo->prepare("DELETE FROM film WHERE id = ?")->execute([$id]);
+    header("Location: /cinema/admin/films/liste.php?deleted=1");
+    exit;
+}
+
+$films = $pdo->query("SELECT * FROM film ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CinéMax — Films</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>CinéMax – Gestion Films</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
         :root {
-            --gold: #c9a84c;
-            --gold-light: #e8c96d;
-            --dark: #0a0a0f;
-            --dark2: #12121a;
-            --dark3: #1c1c28;
-            --dark4: #252535;
-            --text: #f0ede6;
-            --text-muted: #8a8799;
-            --red: #e63946;
+            --gold: #c9a84c; --gold-light: #e8c96d;
+            --dark: #0a0a0f; --dark2: #12121a; --dark3: #1c1c28; --dark4: #252535;
+            --text: #f0ede6; --text-muted: #8a8799; --red: #e63946;
         }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--dark);
-            color: var(--text);
-            min-height: 100vh;
-        }
-
+        body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; }
         body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 80% 60% at 20% 50%, rgba(201,168,76,0.06) 0%, transparent 60%),
-                radial-gradient(ellipse 60% 80% at 80% 50%, rgba(230,57,70,0.04) 0%, transparent 60%);
-            pointer-events: none;
-            z-index: 0;
+            content: ''; position: fixed; inset: 0;
+            background: radial-gradient(ellipse 80% 60% at 20% 50%, rgba(201,168,76,0.06) 0%, transparent 60%);
+            pointer-events: none; z-index: 0;
         }
+        .filmstrip { width:100%; height:36px; background:var(--dark2); border-bottom:2px solid var(--gold); display:flex; align-items:center; overflow:hidden; position:relative; z-index:10; }
+        .filmstrip-holes { display:flex; gap:18px; padding:0 12px; animation:scroll-strip 12s linear infinite; }
+        .hole { width:18px; height:20px; background:var(--dark); border-radius:3px; flex-shrink:0; border:1px solid #2a2a3a; }
+        @keyframes scroll-strip { from{transform:translateX(0)} to{transform:translateX(-300px)} }
 
-        /* Filmstrip */
-        .filmstrip {
-            width: 100%; height: 36px;
-            background: var(--dark2);
-            border-bottom: 2px solid var(--gold);
-            display: flex; align-items: center;
-            overflow: hidden; position: relative; z-index: 10;
-        }
-        .filmstrip-holes {
-            display: flex; gap: 18px; padding: 0 12px;
-            animation: scroll-strip 12s linear infinite;
-        }
-        .hole {
-            width: 18px; height: 20px;
-            background: var(--dark); border-radius: 3px;
-            flex-shrink: 0; border: 1px solid #2a2a3a;
-        }
-        @keyframes scroll-strip {
-            from { transform: translateX(0); }
-            to   { transform: translateX(-300px); }
-        }
+        nav { position:relative; z-index:10; display:flex; justify-content:space-between; align-items:center; padding:18px 48px; background:var(--dark2); border-bottom:1px solid #2a2a3a; flex-wrap:wrap; gap:12px; }
+        .logo { font-family:'Playfair Display',serif; font-size:26px; font-weight:700; color:var(--gold); letter-spacing:4px; text-transform:uppercase; text-decoration:none; }
+        .logo span { color:var(--red); }
+        .nav-links { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+        .nav-link { color:var(--text-muted); text-decoration:none; font-size:14px; padding:6px 14px; border-radius:6px; transition:background 0.2s,color 0.2s; }
+        .nav-link:hover { background:var(--dark3); color:var(--text); }
+        .nav-link.active { color:var(--gold); border:1px solid rgba(201,168,76,0.3); }
+        .logout-btn { padding:8px 20px; background:transparent; border:1px solid var(--red); color:var(--red); border-radius:6px; text-decoration:none; font-size:13px; transition:background 0.2s; }
+        .logout-btn:hover { background:rgba(230,57,70,0.1); }
 
-        /* Navbar */
-        nav {
-            position: relative; z-index: 10;
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 18px 48px;
-            background: var(--dark2);
-            border-bottom: 1px solid #2a2a3a;
-            gap: 16px; flex-wrap: wrap;
-        }
-        .logo {
-            font-family: 'Playfair Display', serif;
-            font-size: 26px; font-weight: 700;
-            color: var(--gold); letter-spacing: 4px;
-            text-transform: uppercase; text-decoration: none;
-        }
-        .logo span { color: var(--red); }
-        .nav-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .welcome { font-size: 14px; color: var(--text-muted); margin-right: 8px; }
-        .welcome strong { color: var(--gold); }
-        .nav-btn {
-            padding: 8px 16px;
-            background: var(--dark3);
-            border: 1px solid #2a2a3a;
-            color: var(--text-muted);
-            border-radius: 6px; text-decoration: none;
-            font-size: 13px; font-weight: 500;
-            transition: border-color 0.2s, color 0.2s;
-        }
-        .nav-btn:hover { border-color: var(--gold); color: var(--gold); }
-        .logout-btn {
-            padding: 8px 20px; background: transparent;
-            border: 1px solid var(--red); color: var(--red);
-            border-radius: 6px; text-decoration: none;
-            font-size: 13px; font-weight: 500; transition: background 0.2s;
-        }
-        .logout-btn:hover { background: rgba(230,57,70,0.1); }
+        main { position:relative; z-index:1; max-width:1100px; margin:0 auto; padding:40px 24px; }
 
-        /* Main */
-        main {
-            position: relative; z-index: 1;
-            max-width: 1200px; margin: 0 auto;
-            padding: 48px 24px;
-        }
+        .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
+        .page-title { font-family:'Playfair Display',serif; font-size:30px; }
+        .page-title span { color:var(--gold); }
 
-        .section-header { margin-bottom: 36px; }
-        .section-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 36px; color: var(--text); margin-bottom: 6px;
-        }
-        .section-title span { color: var(--gold); }
-        .section-sub { font-size: 14px; color: var(--text-muted); }
+        .btn-add { display:inline-flex; align-items:center; gap:8px; padding:11px 24px; background:linear-gradient(135deg,var(--gold),var(--gold-light)); color:var(--dark); border-radius:8px; text-decoration:none; font-weight:700; font-size:13px; letter-spacing:0.5px; transition:opacity 0.2s; }
+        .btn-add:hover { opacity:0.85; }
 
-        /* ═══════════════════════════════════════
-           MOVIE GRID + HOVER EFFECT
-        ═══════════════════════════════════════ */
-        .movie-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 28px;
-        }
+        .msg { padding:12px 16px; border-radius:8px; font-size:14px; margin-bottom:20px; }
+        .msg-success { background:rgba(42,157,143,0.12); border:1px solid rgba(42,157,143,0.3); color:#4ecdc4; }
 
-        .movie-card {
-            position: relative;
-            border-radius: 14px;
-            overflow: hidden;
-            cursor: pointer;
-            aspect-ratio: 2/3;
-            background: var(--dark3);
-            border: 1px solid #2a2a3a;
-            /* Légère élévation au départ */
-            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        box-shadow 0.4s ease,
-                        border-color 0.4s ease;
-        }
+        /* Table */
+        .table-wrap { background:var(--dark2); border:1px solid #2a2a3a; border-radius:14px; overflow:hidden; }
+        table { width:100%; border-collapse:collapse; }
+        thead { background:var(--dark3); }
+        thead th { padding:14px 18px; text-align:left; font-size:11px; font-weight:500; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); border-bottom:1px solid #2a2a3a; }
+        tbody tr { border-bottom:1px solid #1e1e2a; transition:background 0.15s; }
+        tbody tr:last-child { border-bottom:none; }
+        tbody tr:hover { background:var(--dark3); }
+        td { padding:14px 18px; font-size:14px; vertical-align:middle; }
 
-        .movie-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.3);
-            border-color: var(--gold);
-        }
+        .poster-thumb { width:48px; height:64px; object-fit:cover; border-radius:6px; border:1px solid #2a2a3a; }
+        .poster-placeholder { width:48px; height:64px; background:var(--dark4); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:20px; border:1px solid #2a2a3a; }
 
-        /* Affiche */
-        .poster {
-            width: 100%; height: 100%;
-            object-fit: cover;
-            display: block;
-            transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        filter 0.4s ease;
-        }
+        .film-title { font-weight:500; color:var(--text); }
+        .film-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
 
-        .movie-card:hover .poster {
-            transform: scale(1.08);
-            filter: brightness(0.35) saturate(0.8);
-        }
+        .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:500; background:var(--dark4); border:1px solid #2e2e42; color:var(--text-muted); }
 
-        .poster-placeholder {
-            width: 100%; height: 100%;
-            background: var(--dark4);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 64px;
-            transition: filter 0.4s ease;
-        }
+        .actions { display:flex; gap:8px; }
+        .btn-edit { padding:6px 16px; background:transparent; border:1px solid var(--gold); color:var(--gold); border-radius:6px; text-decoration:none; font-size:12px; font-weight:500; transition:background 0.2s; }
+        .btn-edit:hover { background:rgba(201,168,76,0.1); }
+        .btn-delete { padding:6px 16px; background:transparent; border:1px solid var(--red); color:var(--red); border-radius:6px; text-decoration:none; font-size:12px; font-weight:500; transition:background 0.2s; cursor:pointer; }
+        .btn-delete:hover { background:rgba(230,57,70,0.1); }
 
-        .movie-card:hover .poster-placeholder {
-            filter: brightness(0.3);
-        }
+        .empty { text-align:center; padding:60px 20px; color:var(--text-muted); }
+        .empty-icon { font-size:48px; margin-bottom:12px; }
 
-        /* ── Overlay info (apparaît au hover) ── */
-        .card-overlay {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            padding: 24px 20px 20px;
-            /* Gradient du bas vers le haut */
-            background: linear-gradient(
-                to top,
-                rgba(0,0,0,0.95) 0%,
-                rgba(0,0,0,0.7) 40%,
-                transparent 100%
-            );
-            opacity: 0;
-            transform: translateY(12px);
-            transition: opacity 0.35s ease, transform 0.35s ease;
-            pointer-events: none;
-        }
-
-        .movie-card:hover .card-overlay {
-            opacity: 1;
-            transform: translateY(0);
-            pointer-events: auto;
-        }
-
-        /* Titre toujours visible en bas */
-        .card-always {
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            padding: 36px 16px 16px;
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
-            transition: opacity 0.3s ease;
-        }
-
-        .movie-card:hover .card-always {
-            opacity: 0;
-        }
-
-        .always-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 16px; font-weight: 700;
-            color: var(--text); margin-bottom: 4px;
-            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-        }
-
-        .always-badges { display: flex; gap: 6px; flex-wrap: wrap; }
-        .badge-sm {
-            font-size: 10px; padding: 2px 7px;
-            border-radius: 3px;
-            background: rgba(201,168,76,0.2);
-            border: 1px solid rgba(201,168,76,0.3);
-            color: var(--gold);
-        }
-
-        /* Contenu overlay */
-        .overlay-genre {
-            font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-            color: var(--gold); margin-bottom: 8px; font-weight: 500;
-        }
-
-        .overlay-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 22px; font-weight: 700; line-height: 1.2;
-            color: var(--text); margin-bottom: 10px;
-        }
-
-        .overlay-synopsis {
-            font-size: 12px; color: rgba(240,237,230,0.75);
-            line-height: 1.6; margin-bottom: 14px;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .overlay-meta {
-            display: flex; gap: 10px; margin-bottom: 16px;
-        }
-
-        .meta-pill {
-            font-size: 11px; padding: 3px 10px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            color: rgba(240,237,230,0.7);
-        }
-
-        .btn-reserver {
-            display: block; width: 100%;
-            padding: 11px;
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
-            color: var(--dark);
-            text-align: center; text-decoration: none;
-            border-radius: 8px;
-            font-weight: 700; font-size: 13px; letter-spacing: 0.5px;
-            transition: opacity 0.2s, transform 0.2s;
-        }
-        .btn-reserver:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        /* Numéro du film (décoratif) */
-        .card-number {
-            position: absolute;
-            top: 14px; right: 14px;
-            font-family: 'Playfair Display', serif;
-            font-size: 11px; letter-spacing: 2px;
-            color: rgba(201,168,76,0.5);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .movie-card:hover .card-number { opacity: 1; }
-
-        /* Empty state */
-        .empty {
-            text-align: center; padding: 80px 20px;
-            color: var(--text-muted);
-        }
-        .empty-icon { font-size: 56px; margin-bottom: 16px; }
-        .empty h3 {
-            font-family: 'Playfair Display', serif;
-            font-size: 22px; color: var(--text); margin-bottom: 8px;
-        }
-
-        @media(max-width: 600px) {
-            nav { padding: 14px 20px; }
-            .movie-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
-            .overlay-synopsis { display: none; }
-        }
+        @media(max-width:700px) { nav { padding:14px 20px; } td:nth-child(3), td:nth-child(4) { display:none; } }
     </style>
 </head>
 <body>
@@ -324,83 +112,73 @@ $firstName = isset($_SESSION["nom"]) ? $_SESSION["nom"] : "Invité";
 
 <nav>
     <a href="/cinema/films/liste.php" class="logo">Ciné<span>Max</span></a>
-    <div class="nav-right">
-        <span class="welcome">Bonjour, <strong><?= htmlspecialchars($firstName) ?></strong> 🎬</span>
-        <a href="/cinema/profil.php" class="nav-btn">👤 Profil</a>
-        <a href="/cinema/reservations/liste.php" class="nav-btn">🎟️ Mes réservations</a>
+    <div class="nav-links">
+        <a href="/cinema/admin/films/liste.php" class="nav-link active">🎬 Films</a>
+        <a href="/cinema/admin/seances/liste.php" class="nav-link">🕐 Séances</a>
+        <a href="/cinema/admin/reservations/liste.php" class="nav-link">🎟️ Réservations</a>
+        <a href="/cinema/admin/stats.php" class="nav-link">📊 Stats</a>
         <a href="/cinema/auth/logout.php" class="logout-btn">Déconnexion</a>
     </div>
 </nav>
 
 <main>
-    <div class="section-header">
-        <h1 class="section-title">Nos <span>Films</span></h1>
-        <p class="section-sub">Survolez un film pour découvrir les détails — cliquez pour réserver</p>
+    <div class="top-bar">
+        <h1 class="page-title">Gestion des <span>Films</span></h1>
+        <a href="/cinema/admin/films/add.php" class="btn-add">＋ Ajouter un film</a>
     </div>
 
-    <?php if (empty($films)): ?>
-        <div class="empty">
-            <div class="empty-icon">🎭</div>
-            <h3>Aucun film disponible</h3>
-            <p>Les films seront bientôt ajoutés.</p>
-        </div>
-    <?php else: ?>
-        <div class="movie-grid">
-            <?php foreach ($films as $i => $film): ?>
-                <div class="movie-card">
-
-                    <!-- Numéro décoratif -->
-                    <span class="card-number"><?= str_pad($i+1, 2, '0', STR_PAD_LEFT) ?></span>
-
-                    <!-- Affiche -->
-                    <?php if (!empty($film['affiche'])): ?>
-                        <img src="/cinema/<?= htmlspecialchars($film['affiche']) ?>"
-                             alt="<?= htmlspecialchars($film['titre']) ?>"
-                             class="poster">
-                    <?php else: ?>
-                        <div class="poster-placeholder">🎬</div>
-                    <?php endif; ?>
-
-                    <!-- Info toujours visible (disparaît au hover) -->
-                    <div class="card-always">
-                        <div class="always-title"><?= htmlspecialchars($film['titre']) ?></div>
-                        <div class="always-badges">
-                            <?php if ($film['genre']): ?>
-                                <span class="badge-sm"><?= htmlspecialchars($film['genre']) ?></span>
-                            <?php endif; ?>
-                            <?php if ($film['annee']): ?>
-                                <span class="badge-sm"><?= $film['annee'] ?></span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- Overlay au hover -->
-                    <div class="card-overlay">
-                        <div class="overlay-genre"><?= htmlspecialchars($film['genre'] ?? '') ?></div>
-                        <div class="overlay-title"><?= htmlspecialchars($film['titre']) ?></div>
-
-                        <?php if (!empty($film['synopsis'])): ?>
-                            <div class="overlay-synopsis"><?= htmlspecialchars($film['synopsis']) ?></div>
-                        <?php endif; ?>
-
-                        <div class="overlay-meta">
-                            <?php if ($film['annee']): ?>
-                                <span class="meta-pill">📅 <?= $film['annee'] ?></span>
-                            <?php endif; ?>
-                            <?php if ($film['duree']): ?>
-                                <span class="meta-pill">⏱ <?= $film['duree'] ?> min</span>
-                            <?php endif; ?>
-                        </div>
-
-                        <a href="/cinema/seances/liste.php?id=<?= $film['id'] ?>" class="btn-reserver">
-                            🎟️ Voir les séances
-                        </a>
-                    </div>
-
-                </div>
-            <?php endforeach; ?>
-        </div>
+    <?php if (isset($_GET["deleted"])): ?>
+        <div class="msg msg-success">Film supprimé avec succès.</div>
     <?php endif; ?>
+
+    <div class="table-wrap">
+        <?php if (empty($films)): ?>
+            <div class="empty">
+                <div class="empty-icon">🎬</div>
+                <p>Aucun film. <a href="/cinema/admin/films/add.php" style="color:var(--gold)">Ajoutez le premier !</a></p>
+            </div>
+        <?php else: ?>
+        <table>
+            <thead>
+                <tr>
+                    <th>Affiche</th>
+                    <th>Film</th>
+                    <th>Genre</th>
+                    <th>Année</th>
+                    <th>Durée</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($films as $film): ?>
+                <tr>
+                    <td>
+                        <?php if (!empty($film["affiche"])): ?>
+                            <img src="/cinema/<?= htmlspecialchars($film["affiche"]) ?>" class="poster-thumb" alt="">
+                        <?php else: ?>
+                            <div class="poster-placeholder">🎬</div>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <div class="film-title"><?= htmlspecialchars($film["titre"]) ?></div>
+                        <div class="film-meta"><?= mb_substr(htmlspecialchars($film["synopsis"] ?? ""), 0, 60) ?>...</div>
+                    </td>
+                    <td><span class="badge"><?= htmlspecialchars($film["genre"] ?? "—") ?></span></td>
+                    <td><?= $film["annee"] ?? "—" ?></td>
+                    <td><?= $film["duree"] ? $film["duree"]." min" : "—" ?></td>
+                    <td>
+                        <div class="actions">
+                            <a href="/cinema/admin/films/edit.php?id=<?= $film["id"] ?>" class="btn-edit">✏️ Modifier</a>
+                            <a href="?delete=<?= $film["id"] ?>" class="btn-delete"
+                               onclick="return confirm('Supprimer ce film ?')">🗑️ Supprimer</a>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
 </main>
 
 </body>

@@ -1,8 +1,6 @@
 <?php
 session_start();
 require_once __DIR__ . "/../../config/db.php";
-
-// Protection admin
 if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
     header("Location: /cinema/auth/auth.php");
     exit;

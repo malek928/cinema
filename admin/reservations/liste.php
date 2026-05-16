@@ -1,12 +1,10 @@
 <?php
 session_start();
 require_once __DIR__ . "/../../config/db.php";
-
 if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
     header("Location: /cinema/auth/auth.php");
     exit;
 }
-
 // Changer le statut
 if (isset($_GET["statut"]) && isset($_GET["id"])) {
     $id     = (int)$_GET["id"];
